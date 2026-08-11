@@ -33,7 +33,7 @@ const { useState, useEffect } = React;
 // sb_publishable_...) y pegala completa acá abajo, reemplazando el texto
 // entre comillas.
 const SUPABASE_URL = "https://qjynnwpfnwxqiawdnrnk.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_YaA7HgU6k46ASogDJQWA-A_ST-zApPm";
+const SUPABASE_ANON_KEY = "PEGÁ_ACÁ_TU_PUBLISHABLE_KEY_COMPLETA";
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const SUPABASE_CONFIGURED = !SUPABASE_ANON_KEY.startsWith("PEGÁ");
@@ -292,6 +292,7 @@ function BuscarScreen({ onOpen }) {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState("");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -314,7 +315,11 @@ function BuscarScreen({ onOpen }) {
 
   const filters = ["Todos", ...CATEGORIES];
   const byCategory = filter === "Todos" ? listings : listings.filter((l) => l.type === filter);
-  const filtered = zone === "Todo el país" ? byCategory : byCategory.filter((l) => l.region === zone);
+  const byZone = zone === "Todo el país" ? byCategory : byCategory.filter((l) => l.region === zone);
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? byZone.filter((l) => (l.brand + " " + l.model).toLowerCase().includes(q))
+    : byZone;
 
   return (
     <>
@@ -327,7 +332,7 @@ function BuscarScreen({ onOpen }) {
       <div className="px-4 pt-2 pb-3" style={{ background: "#16321F" }}>
         <div className="flex items-center gap-2 rounded-full px-3 py-2" style={{ background: "rgba(255,255,255,0.12)" }}>
           <Search size={16} color="#DDE6DD" />
-          <input placeholder="Buscar marca, modelo..." className="bg-transparent outline-none text-sm flex-1 placeholder-white/50 text-white" readOnly />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar marca, modelo..." className="bg-transparent outline-none text-sm flex-1 placeholder-white/50 text-white" />
           <SlidersHorizontal size={16} color="#DDE6DD" />
         </div>
       </div>
@@ -371,7 +376,9 @@ function BuscarScreen({ onOpen }) {
               <SpecTag listing={l} />
               <div className="p-2.5">
                 <div className="text-[10px] uppercase tracking-wide" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{l.brand}</div>
-                <div className="text-[13px] leading-snug mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#1C2321" }}>{l.model}</div>
+                <div className="text-[13px] leading-snug mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#1C2321" }}>
+                  {l.model}{l.subtype ? ` — ${l.type} ${l.subtype}` : ""}
+                </div>
                 <div className="text-[14px] mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#16321F" }}>{money(l.price)}</div>
                 <div className="flex items-center gap-1 text-[10px]" style={{ color: "#8B8574" }}><MapPin size={10} />{l.zone}</div>
               </div>
@@ -383,13 +390,48 @@ function BuscarScreen({ onOpen }) {
   );
 }
 
-function DetalleScreen({ listing, onBack }) {
+function DetalleScreen({ listing, onBack, session, onOpenChat }) {
+  const [starting, setStarting] = useState(false);
+  const [chatError, setChatError] = useState("");
   const specs = [
-    ["Marca", listing.brand], ["Modelo", listing.model], ["Tipo", listing.type],
+    ["Marca", listing.brand], ["Modelo", listing.model],
+    ["Tipo", listing.subtype ? `${listing.type} ${listing.subtype}` : listing.type],
     ["Mano", listing.hand], ["Flex", listing.flex], ["Loft", listing.loft], ["Estado", listing.condition],
   ];
-  const photo = (listing.listing_photos || []).sort((a, b) => a.position - b.position)[0];
+  const photos = (listing.listing_photos || []).slice().sort((a, b) => a.position - b.position);
+  const photo = photos[0];
   const seller = listing.seller || {};
+  const isOwnListing = session && session.user.id === listing.seller_id;
+
+  const startChat = async () => {
+    if (!session) { setChatError("Iniciá sesión primero, desde la pestaña Perfil."); return; }
+    setChatError("");
+    setStarting(true);
+    try {
+      const { data: existing } = await supabase
+        .from("conversations")
+        .select("*")
+        .eq("listing_id", listing.id)
+        .eq("buyer_id", session.user.id)
+        .maybeSingle();
+
+      let conversation = existing;
+      if (!conversation) {
+        const { data: created, error: createError } = await supabase
+          .from("conversations")
+          .insert({ listing_id: listing.id, buyer_id: session.user.id, seller_id: listing.seller_id })
+          .select()
+          .single();
+        if (createError) throw createError;
+        conversation = created;
+      }
+      onOpenChat({ ...conversation, listing });
+    } catch (err) {
+      setChatError(err.message || "No se pudo abrir el chat.");
+    } finally {
+      setStarting(false);
+    }
+  };
   return (
     <>
       <TopBar title="Publicación" onBack={onBack} />
@@ -403,6 +445,14 @@ function DetalleScreen({ listing, onBack }) {
           <div className="text-[11px] uppercase tracking-wide" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{listing.brand}</div>
           <div className="text-[22px] leading-tight" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#1C2321" }}>{listing.model}</div>
           <div className="text-[24px] mt-1 mb-3" style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, color: "#16321F" }}>{money(listing.price)}</div>
+
+          {photos.length > 1 && (
+            <div className="flex gap-2 mb-4 overflow-x-auto">
+              {photos.map((p, i) => (
+                <img key={p.url + i} src={p.url} alt="" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" style={{ border: "1px solid #E4E1D4" }} />
+              ))}
+            </div>
+          )}
 
           <div className="rounded-lg overflow-hidden mb-4" style={{ border: "1px solid #E4E1D4", background: "#FCFBF6" }}>
             {specs.map(([label, val], i) => (
@@ -432,19 +482,31 @@ function DetalleScreen({ listing, onBack }) {
         </div>
       </div>
       <div className="p-3" style={{ background: "#FCFBF6", borderTop: "1px solid #E4E1D4" }}>
-        <button className="w-full py-3 rounded-full text-white text-sm flex items-center justify-center gap-2" style={{ background: "#B23A24", fontFamily: "'Space Mono', monospace" }}>
-          <MessageCircle size={15} />
-          Escribir al vendedor
-        </button>
+        {chatError && <div className="text-[11px] mb-2 text-center" style={{ color: "#B23A24" }}>{chatError}</div>}
+        {isOwnListing ? (
+          <div className="w-full py-3 rounded-full text-center text-sm" style={{ background: "#F0EEE4", color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>
+            Esta es tu publicación
+          </div>
+        ) : (
+          <button onClick={startChat} disabled={starting} className="w-full py-3 rounded-full text-white text-sm flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: "#B23A24", fontFamily: "'Space Mono', monospace" }}>
+            <MessageCircle size={15} />
+            {starting ? "Abriendo chat..." : "Escribir al vendedor"}
+          </button>
+        )}
       </div>
     </>
   );
 }
 
+const NUMBERED_TYPES = ["Madera", "Híbrido"];
+const CLUB_NUMBERS = ["1", "2", "3", "4", "5", "6", "7", "9", "11"];
+const MAX_PHOTOS = 10;
+
 function PublicarScreen({ session }) {
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [type, setType] = useState(CATEGORIES[0]);
+  const [subtype, setSubtype] = useState("");
   const [hand, setHand] = useState(HANDS[0]);
   const [flex, setFlex] = useState("");
   const [loft, setLoft] = useState("");
@@ -452,10 +514,15 @@ function PublicarScreen({ session }) {
   const [price, setPrice] = useState("");
   const [zone, setZone] = useState("");
   const [region, setRegion] = useState(ZONES[0]);
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+
+  const addFiles = (newFiles) => {
+    setFiles((prev) => [...prev, ...Array.from(newFiles)].slice(0, MAX_PHOTOS));
+  };
+  const removeFile = (idx) => setFiles((prev) => prev.filter((_, i) => i !== idx));
 
   if (!session) {
     return (
@@ -478,23 +545,26 @@ function PublicarScreen({ session }) {
         .from("listings")
         .insert({
           seller_id: session.user.id,
-          brand, model, type, hand, flex, loft, condition,
+          brand, model, type,
+          subtype: NUMBERED_TYPES.includes(type) ? subtype : null,
+          hand, flex, loft, condition,
           price: Number(price), zone, region,
         })
         .select()
         .single();
       if (insertError) throw insertError;
 
-      if (file) {
-        const path = `${session.user.id}/${inserted.id}-${file.name}`;
-        const { error: uploadError } = await supabase.storage.from("listing-photos").upload(path, file);
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        const path = `${session.user.id}/${inserted.id}-${i}-${f.name}`;
+        const { error: uploadError } = await supabase.storage.from("listing-photos").upload(path, f);
         if (uploadError) throw uploadError;
         const { data: pub } = supabase.storage.from("listing-photos").getPublicUrl(path);
-        await supabase.from("listing_photos").insert({ listing_id: inserted.id, url: pub.publicUrl, position: 0 });
+        await supabase.from("listing_photos").insert({ listing_id: inserted.id, url: pub.publicUrl, position: i });
       }
 
       setSuccess(true);
-      setBrand(""); setModel(""); setFlex(""); setLoft(""); setPrice(""); setZone(""); setFile(null);
+      setBrand(""); setModel(""); setSubtype(""); setFlex(""); setLoft(""); setPrice(""); setZone(""); setFiles([]);
     } catch (err) {
       setError(err.message || "No se pudo publicar, probá de nuevo.");
     } finally {
@@ -507,13 +577,30 @@ function PublicarScreen({ session }) {
       <TopBar title="Publicar palo" />
       <form onSubmit={submit} className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 overflow-y-auto px-4 py-4" style={{ background: "#F5F6EF" }}>
-          <label className="w-full h-32 rounded-lg flex flex-col items-center justify-center gap-1.5 mb-4 cursor-pointer" style={{ background: "#FCFBF6", border: "1.5px dashed #CFCBB8" }}>
-            <Camera size={22} color="#8B8574" />
-            <span className="text-[12px]" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>
-              {file ? file.name : "Agregar foto"}
-            </span>
-            <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files[0] || null)} />
-          </label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-[10px] uppercase tracking-wide" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Fotos</label>
+            <span className="text-[10px]" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{files.length}/{MAX_PHOTOS}</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {files.map((f, i) => (
+              <div key={i} className="relative w-full aspect-square rounded-lg overflow-hidden" style={{ border: "1px solid #E4E1D4" }}>
+                <img src={URL.createObjectURL(f)} alt="" className="w-full h-full object-cover" />
+                <button type="button" onClick={() => removeFile(i)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-white text-[11px]"
+                  style={{ background: "rgba(20,20,20,0.65)" }}>×</button>
+                {i === 0 && (
+                  <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[9px] text-white" style={{ background: "rgba(20,20,20,0.65)", fontFamily: "'Space Mono', monospace" }}>Portada</span>
+                )}
+              </div>
+            ))}
+            {files.length < MAX_PHOTOS && (
+              <label className="w-full aspect-square rounded-lg flex flex-col items-center justify-center gap-1 cursor-pointer" style={{ background: "#FCFBF6", border: "1.5px dashed #CFCBB8" }}>
+                <Camera size={18} color="#8B8574" />
+                <span className="text-[9px] text-center px-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Agregar</span>
+                <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+              </label>
+            )}
+          </div>
 
           {[
             ["Marca", brand, setBrand, "Ej: Callaway"],
@@ -530,12 +617,26 @@ function PublicarScreen({ session }) {
             <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Tipo de palo</label>
             <div className="flex flex-wrap gap-2">
               {CATEGORIES.map((t) => (
-                <button type="button" key={t} onClick={() => setType(t)} className="px-3 py-1.5 rounded-full text-xs" style={{ fontFamily: "'Space Mono', monospace", background: type === t ? "#16321F" : "#FCFBF6", color: type === t ? "#F5F6EF" : "#454A40", border: "1px solid " + (type === t ? "#16321F" : "#E4E1D4") }}>
+                <button type="button" key={t} onClick={() => { setType(t); if (!NUMBERED_TYPES.includes(t)) setSubtype(""); }} className="px-3 py-1.5 rounded-full text-xs" style={{ fontFamily: "'Space Mono', monospace", background: type === t ? "#16321F" : "#FCFBF6", color: type === t ? "#F5F6EF" : "#454A40", border: "1px solid " + (type === t ? "#16321F" : "#E4E1D4") }}>
                   {t}
                 </button>
               ))}
             </div>
           </div>
+
+          {NUMBERED_TYPES.includes(type) && (
+            <div className="mb-3">
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Número de {type.toLowerCase()}</label>
+              <div className="flex flex-wrap gap-2">
+                {CLUB_NUMBERS.map((n) => (
+                  <button type="button" key={n} onClick={() => setSubtype(n)} className="w-9 h-9 rounded-full text-xs flex items-center justify-center" style={{ fontFamily: "'Space Mono', monospace", background: subtype === n ? "#16321F" : "#FCFBF6", color: subtype === n ? "#F5F6EF" : "#454A40", border: "1px solid " + (subtype === n ? "#16321F" : "#E4E1D4") }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] mt-1" style={{ color: "#8B8574" }}>Ej: {type} {subtype || "5"}</div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
@@ -598,16 +699,159 @@ function PublicarScreen({ session }) {
   );
 }
 
-function ChatsScreen() {
+function ChatsScreen({ session, onOpenChat }) {
+  const [conversations, setConversations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!session) { setLoading(false); return; }
+    let active = true;
+    async function load() {
+      setLoading(true);
+      const uid = session.user.id;
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("*, listing:listings(brand, model, price), buyer:profiles!conversations_buyer_id_fkey(full_name), seller:profiles!conversations_seller_id_fkey(full_name)")
+        .or(`buyer_id.eq.${uid},seller_id.eq.${uid}`)
+        .order("created_at", { ascending: false });
+      if (!active) return;
+      if (error) setError(error.message);
+      else setConversations(data || []);
+      setLoading(false);
+    }
+    load();
+    return () => { active = false; };
+  }, [session]);
+
+  if (!session) {
+    return (
+      <>
+        <TopBar title="Chats" />
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center" style={{ background: "#F5F6EF" }}>
+          <MessageCircle size={28} color="#CFCBB8" />
+          <div className="text-[12px] mt-2" style={{ color: "#8B8574" }}>Iniciá sesión para ver tus chats.</div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <TopBar title="Chats" />
-      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center" style={{ background: "#F5F6EF" }}>
-        <MessageCircle size={28} color="#CFCBB8" />
-        <div className="text-[12px] mt-2" style={{ color: "#8B8574" }}>
-          El chat real todavía no está conectado — es el próximo paso del roadmap.
-        </div>
+      <div className="flex-1 overflow-y-auto" style={{ background: "#F5F6EF" }}>
+        {loading && <div className="text-center text-[12px] py-6" style={{ color: "#8B8574" }}>Cargando...</div>}
+        {error && <div className="mx-4 mt-3 text-[12px]" style={{ color: "#B23A24" }}>{error}</div>}
+        {!loading && !error && conversations.length === 0 && (
+          <div className="flex flex-col items-center justify-center px-6 text-center py-16">
+            <MessageCircle size={28} color="#CFCBB8" />
+            <div className="text-[12px] mt-2" style={{ color: "#8B8574" }}>Todavía no tenés conversaciones. Escribile a un vendedor desde una publicación.</div>
+          </div>
+        )}
+        {conversations.map((c) => {
+          const isBuyer = session.user.id === c.buyer_id;
+          const other = isBuyer ? c.seller : c.buyer;
+          const listing = c.listing || {};
+          return (
+            <button key={c.id} onClick={() => onOpenChat(c)} className="w-full text-left flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid #E4E1D4" }}>
+              <div className="w-11 h-11 rounded-full flex items-center justify-center text-white" style={{ background: "#16321F", fontFamily: "'Fraunces', serif" }}>
+                {(other && other.full_name ? other.full_name[0] : "?")}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium" style={{ color: "#1C2321" }}>{(other && other.full_name) || "Usuario"}</div>
+                <div className="text-[11px] uppercase tracking-wide mt-0.5" style={{ color: "#B58A3F", fontFamily: "'Space Mono', monospace" }}>
+                  {listing.brand} {listing.model}
+                </div>
+              </div>
+              <ChevronRight size={15} color="#8B8574" />
+            </button>
+          );
+        })}
       </div>
+    </>
+  );
+}
+
+function ConversationScreen({ conversation, session, onBack }) {
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const scrollRef = React.useRef(null);
+  const otherId = session.user.id === conversation.buyer_id ? conversation.seller_id : conversation.buyer_id;
+
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      setLoading(true);
+      const { data } = await supabase
+        .from("messages")
+        .select("*")
+        .eq("conversation_id", conversation.id)
+        .order("created_at", { ascending: true });
+      if (!active) return;
+      setMessages(data || []);
+      setLoading(false);
+    }
+    load();
+
+    const channel = supabase
+      .channel(`conversation-${conversation.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversation.id}` },
+        (payload) => setMessages((prev) => [...prev, payload.new]))
+      .subscribe();
+
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, [conversation.id]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [messages]);
+
+  const send = async (e) => {
+    e.preventDefault();
+    const body = text.trim();
+    if (!body) return;
+    setSending(true);
+    setText("");
+    await supabase.from("messages").insert({
+      conversation_id: conversation.id, sender_id: session.user.id, body,
+    });
+    setSending(false);
+  };
+
+  const listing = conversation.listing || {};
+
+  return (
+    <>
+      <TopBar title={listing.model ? `${listing.brand || ""} ${listing.model}`.trim() : "Chat"} onBack={onBack} />
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3" style={{ background: "#F5F6EF" }}>
+        {loading && <div className="text-center text-[12px] py-6" style={{ color: "#8B8574" }}>Cargando mensajes...</div>}
+        {!loading && messages.length === 0 && (
+          <div className="text-center text-[12px] py-6" style={{ color: "#8B8574" }}>Escribí el primer mensaje para arrancar la conversación.</div>
+        )}
+        {messages.map((m) => {
+          const mine = m.sender_id === session.user.id;
+          return (
+            <div key={m.id} className={`flex mb-2 ${mine ? "justify-end" : "justify-start"}`}>
+              <div className="max-w-[75%] px-3 py-2 rounded-2xl text-[13px]" style={{
+                background: mine ? "#16321F" : "#FFFFFF",
+                color: mine ? "#F5F6EF" : "#1C2321",
+                border: mine ? "none" : "1px solid #E4E1D4",
+              }}>
+                {m.body}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <form onSubmit={send} className="p-3 flex items-center gap-2" style={{ background: "#FCFBF6", borderTop: "1px solid #E4E1D4" }}>
+        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Escribí un mensaje..."
+          className="flex-1 px-3 py-2.5 rounded-full text-sm outline-none" style={{ background: "#F0EEE4", border: "1px solid #E4E1D4", color: "#1C2321" }} />
+        <button type="submit" disabled={sending || !text.trim()} className="px-4 py-2.5 rounded-full text-white text-sm disabled:opacity-50" style={{ background: "#16321F", fontFamily: "'Space Mono', monospace" }}>
+          Enviar
+        </button>
+      </form>
     </>
   );
 }
@@ -661,6 +905,7 @@ function PerfilScreen({ session, profile }) {
 function App() {
   const [tab, setTab] = useState("buscar");
   const [selected, setSelected] = useState(null);
+  const [activeConversation, setActiveConversation] = useState(null);
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
 
@@ -678,14 +923,16 @@ function App() {
   }, [session]);
 
   let screen;
-  if (selected) {
-    screen = <DetalleScreen listing={selected} onBack={() => setSelected(null)} />;
+  if (activeConversation) {
+    screen = <ConversationScreen conversation={activeConversation} session={session} onBack={() => setActiveConversation(null)} />;
+  } else if (selected) {
+    screen = <DetalleScreen listing={selected} onBack={() => setSelected(null)} session={session} onOpenChat={(c) => { setSelected(null); setActiveConversation(c); }} />;
   } else if (tab === "buscar") {
     screen = <BuscarScreen onOpen={setSelected} />;
   } else if (tab === "publicar") {
     screen = <PublicarScreen session={session} />;
   } else if (tab === "chats") {
-    screen = <ChatsScreen />;
+    screen = <ChatsScreen session={session} onOpenChat={setActiveConversation} />;
   } else {
     screen = <PerfilScreen session={session} profile={profile} />;
   }
@@ -697,7 +944,7 @@ function App() {
         <div className="flex-1 flex flex-col overflow-hidden rounded-t-[1.4rem]" style={{ background: "#F5F6EF" }}>
           {screen}
         </div>
-        {!selected && <BottomNav tab={tab} setTab={setTab} />}
+        {!selected && !activeConversation && <BottomNav tab={tab} setTab={setTab} />}
       </div>
     </div>
   );
