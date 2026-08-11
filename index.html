@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
@@ -21,10 +22,23 @@
 <div id="root"></div>
 
 <script type="text/babel" data-presets="react">
-const { useState } = React;
+const { useState, useEffect } = React;
+
+// =============================================================================
+// CONEXIÓN A SUPABASE
+// =============================================================================
+// El Project URL ya está completo. Falta la clave: andá a Supabase →
+// Project Settings → API Keys → copiá la "Publishable key" (empieza con
+// sb_publishable_...) y pegala completa acá abajo, reemplazando el texto
+// entre comillas.
+const SUPABASE_URL = "https://qjynnwpfnwxqiawdnrnk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_YaA7HgU6k46ASogDJQWA-A_ST-zApPm";
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_CONFIGURED = !SUPABASE_ANON_KEY.startsWith("PEGÁ");
 
 // ---------------------------------------------------------------------------
-// Iconos (SVG livianos, mismo estilo que lucide, sin dependencias externas)
+// Iconos (SVG livianos, sin dependencias externas)
 // ---------------------------------------------------------------------------
 function Icon({ paths, size = 18, color = "currentColor", strokeWidth = 2 }) {
   return (
@@ -45,61 +59,33 @@ const MessageCircle = (p) => <Icon {...p} paths={<path d="M21 11.5a8.38 8.38 0 0
 const User = (p) => <Icon {...p} paths={<><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></>} />;
 const Star = (p) => <Icon {...p} fill={p.fill} paths={<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />} />;
 const ShieldCheck = (p) => <Icon {...p} paths={<><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><polyline points="9 12 11 14 15 10" /></>} />;
+const LogOut = (p) => <Icon {...p} paths={<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></>} />;
+const AlertCircle = (p) => <Icon {...p} paths={<><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></>} />;
 
 // ---------------------------------------------------------------------------
-// Catálogo: categorías de palos
+// Catálogo: categorías y zonas
 // ---------------------------------------------------------------------------
-const CATEGORIES = [
-  { id: "Driver", label: "Drivers" },
-  { id: "Madera", label: "Maderas" },
-  { id: "Híbrido", label: "Híbridos" },
-  { id: "Hierros", label: "Hierros" },
-  { id: "Wedge", label: "Wedges" },
-  { id: "Putter", label: "Putters" },
-];
-
-const ZONES = [
-  "Capital Federal",
-  "GBA Norte",
-  "GBA Sur",
-  "GBA Oeste",
-  "Córdoba",
-  "Santa Fe",
-  "Mendoza",
-  "Salta",
-];
-
-// ---------------------------------------------------------------------------
-// Datos de ejemplo (catálogo)
-// ---------------------------------------------------------------------------
-const LISTINGS = [
-  { id: 1, brand: "Callaway", model: "Rogue ST Max", type: "Driver", hand: "Diestro", flex: "Regular", loft: "10.5°", condition: "Usado – muy bueno", price: 145000, zone: "San Isidro", region: "GBA Norte", seller: "Martín P.", rating: 4.8, verified: true, accent: "fairway" },
-  { id: 2, brand: "Titleist", model: "T100 (set 4-PW)", type: "Hierros", hand: "Diestro", flex: "Stiff", loft: "Set completo", condition: "Usado – bueno", price: 380000, zone: "Pilar", region: "GBA Norte", seller: "Coti G.", rating: 5.0, verified: true, accent: "sand" },
-  { id: 3, brand: "Scotty Cameron", model: "Newport 2", type: "Putter", hand: "Diestro", flex: "—", loft: "34 in", condition: "Usado – como nuevo", price: 210000, zone: "Nordelta", region: "GBA Norte", seller: "Fede A.", rating: 4.6, verified: false, accent: "flag" },
-  { id: 4, brand: "Ping", model: "G430", type: "Híbrido", hand: "Zurdo", flex: "Regular", loft: "19°", condition: "Usado – aceptable", price: 95000, zone: "Córdoba Capital", region: "Córdoba", seller: "Sole R.", rating: 4.2, verified: true, accent: "fairway" },
-  { id: 5, brand: "TaylorMade", model: "Stealth 2 (set 5-PW)", type: "Hierros", hand: "Diestro", flex: "Regular", loft: "Set completo", condition: "Usado – muy bueno", price: 340000, zone: "Palermo", region: "Capital Federal", seller: "Julián T.", rating: 4.7, verified: true, accent: "sand" },
-  { id: 6, brand: "Callaway", model: "Rogue Fairway 3W", type: "Madera", hand: "Diestro", flex: "Stiff", loft: "15°", condition: "Usado – bueno", price: 88000, zone: "Belgrano", region: "Capital Federal", seller: "Ana L.", rating: 4.9, verified: true, accent: "fairway" },
-  { id: 7, brand: "Cleveland", model: "RTX ZipCore 56°", type: "Wedge", hand: "Diestro", flex: "Wedge", loft: "56°", condition: "Usado – bueno", price: 62000, zone: "Caballito", region: "Capital Federal", seller: "Nico D.", rating: 4.5, verified: false, accent: "flag" },
-  { id: 8, brand: "Titleist", model: "TSR2", type: "Driver", hand: "Zurdo", flex: "Stiff", loft: "9.5°", condition: "Usado – como nuevo", price: 175000, zone: "Morón", region: "GBA Oeste", seller: "Ramiro V.", rating: 4.6, verified: true, accent: "fairway" },
-  { id: 9, brand: "Ping", model: "G430 Hierros (set 5-PW)", type: "Hierros", hand: "Diestro", flex: "Regular", loft: "Set completo", condition: "Usado – bueno", price: 310000, zone: "Quilmes", region: "GBA Sur", seller: "Marina S.", rating: 4.3, verified: true, accent: "sand" },
-  { id: 10, brand: "Odyssey", model: "White Hot OG #7", type: "Putter", hand: "Diestro", flex: "—", loft: "35 in", condition: "Usado – muy bueno", price: 130000, zone: "Rosario", region: "Santa Fe", seller: "Lucas M.", rating: 4.8, verified: true, accent: "flag" },
-  { id: 11, brand: "TaylorMade", model: "Stealth 2 Rescue", type: "Híbrido", hand: "Diestro", flex: "Regular", loft: "22°", condition: "Usado – aceptable", price: 78000, zone: "Ciudad de Mendoza", region: "Mendoza", seller: "Pilar F.", rating: 4.1, verified: false, accent: "fairway" },
-  { id: 12, brand: "Callaway", model: "Mack Daddy CB 60°", type: "Wedge", hand: "Diestro", flex: "Wedge", loft: "60°", condition: "Usado – bueno", price: 58000, zone: "Salta Capital", region: "Salta", seller: "Diego H.", rating: 4.4, verified: false, accent: "sand" },
-];
+const CATEGORIES = ["Driver", "Madera", "Híbrido", "Hierros", "Wedge", "Putter"];
+const ZONES = ["Capital Federal", "GBA Norte", "GBA Sur", "GBA Oeste", "Córdoba", "Santa Fe", "Mendoza", "Salta"];
+const HANDS = ["Diestro", "Zurdo"];
 
 const ACCENTS = {
   fairway: { bg: "#2F6B44", tag: "#EAF2EA" },
   sand: { bg: "#B58A3F", tag: "#F6EEDD" },
   flag: { bg: "#B23A24", tag: "#F7E9E4" },
 };
+const ACCENT_BY_TYPE = {
+  Driver: "fairway", Madera: "fairway", Híbrido: "fairway",
+  Hierros: "sand", Wedge: "flag", Putter: "flag",
+};
 
-const money = (n) => `$${n.toLocaleString("es-AR")}`;
+const money = (n) => `$${Number(n).toLocaleString("es-AR")}`;
 
 // ---------------------------------------------------------------------------
 // Piezas reutilizables
 // ---------------------------------------------------------------------------
 function SpecTag({ listing }) {
-  const c = ACCENTS[listing.accent];
+  const c = ACCENTS[ACCENT_BY_TYPE[listing.type] || "fairway"];
   return (
     <div className="absolute -right-2 -top-2 rotate-6 select-none" style={{ filter: "drop-shadow(0 2px 3px rgba(0,0,0,0.25))" }}>
       <div className="relative px-2.5 py-1 text-[10px] leading-tight" style={{ background: c.bg, color: c.tag, fontFamily: "'Space Mono', monospace", clipPath: "polygon(0 0, 100% 0, 100% 100%, 12px 100%, 0 60%)" }}>
@@ -111,8 +97,16 @@ function SpecTag({ listing }) {
   );
 }
 
-function ClubGlyph({ type, accent }) {
+function ClubGlyph({ type, photoUrl }) {
+  const accent = ACCENT_BY_TYPE[type] || "fairway";
   const c = ACCENTS[accent];
+  if (photoUrl) {
+    return (
+      <div className="relative w-full h-28 overflow-hidden" style={{ background: "#F0EEE4" }}>
+        <img src={photoUrl} alt={type} className="w-full h-full object-cover" />
+      </div>
+    );
+  }
   return (
     <div className="relative w-full h-28 flex items-center justify-center overflow-hidden" style={{ background: "#F0EEE4" }}>
       <svg width="120" height="90" viewBox="0 0 120 90" fill="none">
@@ -172,6 +166,101 @@ function BottomNav({ tab, setTab }) {
   );
 }
 
+function ConfigWarning() {
+  if (SUPABASE_CONFIGURED) return null;
+  return (
+    <div className="mx-4 mt-3 rounded-lg px-3 py-3 text-[12px] flex gap-2" style={{ background: "#FCEFEA", border: "1px solid #E0B7A8", color: "#7A3420" }}>
+      <AlertCircle size={16} />
+      <div>
+        Falta pegar tu clave de Supabase en el código (<code>SUPABASE_ANON_KEY</code>) para que esto funcione de verdad.
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Login / registro
+// ---------------------------------------------------------------------------
+function LoginScreen({ onDone }) {
+  const [mode, setMode] = useState("login"); // login | signup
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setNotice("");
+    setLoading(true);
+    try {
+      if (mode === "signup") {
+        const { error } = await supabase.auth.signUp({
+          email, password,
+          options: { data: { full_name: fullName || "Golfista" } },
+        });
+        if (error) throw error;
+        setNotice("Cuenta creada. Revisá tu email para confirmarla y después iniciá sesión.");
+        setMode("login");
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        onDone && onDone();
+      }
+    } catch (err) {
+      setError(err.message || "Algo salió mal, probá de nuevo.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto px-5 py-6" style={{ background: "#F5F6EF" }}>
+      <div className="text-[20px] mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#1C2321" }}>
+        {mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
+      </div>
+      <div className="text-[12px] mb-5" style={{ color: "#8B8574" }}>
+        {mode === "login" ? "Entrá para publicar y chatear." : "Sumate a 19th Hole."}
+      </div>
+
+      <form onSubmit={submit}>
+        {mode === "signup" && (
+          <div className="mb-3">
+            <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Nombre</label>
+            <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Ej: Juan Pérez"
+              className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }} />
+          </div>
+        )}
+        <div className="mb-3">
+          <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Email</label>
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="vos@mail.com"
+            className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }} />
+        </div>
+        <div className="mb-4">
+          <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Contraseña</label>
+          <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres"
+            className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }} />
+        </div>
+
+        {error && <div className="text-[12px] mb-3" style={{ color: "#B23A24" }}>{error}</div>}
+        {notice && <div className="text-[12px] mb-3" style={{ color: "#2F6B44" }}>{notice}</div>}
+
+        <button type="submit" disabled={loading || !SUPABASE_CONFIGURED} className="w-full py-3 rounded-full text-white text-sm disabled:opacity-50"
+          style={{ background: "#16321F", fontFamily: "'Space Mono', monospace" }}>
+          {loading ? "Un momento..." : mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
+        </button>
+      </form>
+
+      <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); setNotice(""); }}
+        className="w-full text-center mt-4 text-[12px] underline" style={{ color: "#5C594C" }}>
+        {mode === "login" ? "¿No tenés cuenta? Creala acá" : "¿Ya tenés cuenta? Iniciá sesión"}
+      </button>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Pantallas
 // ---------------------------------------------------------------------------
@@ -199,14 +288,37 @@ function BuscarScreen({ onOpen }) {
   const [filter, setFilter] = useState("Todos");
   const [zone, setZone] = useState("Capital Federal");
   const [zoneOpen, setZoneOpen] = useState(false);
-  const filters = ["Todos", "Driver", "Madera", "Híbrido", "Hierros", "Wedge", "Putter"];
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
 
-  const byCategory = filter === "Todos" ? LISTINGS : LISTINGS.filter((l) => l.type === filter);
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      if (!SUPABASE_CONFIGURED) { setLoading(false); return; }
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("listings")
+        .select("*, seller:profiles(full_name, rating, verified), listing_photos(url, position)")
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+      if (!active) return;
+      if (error) setFetchError(error.message);
+      else setListings(data || []);
+      setLoading(false);
+    }
+    load();
+    return () => { active = false; };
+  }, []);
+
+  const filters = ["Todos", ...CATEGORIES];
+  const byCategory = filter === "Todos" ? listings : listings.filter((l) => l.type === filter);
   const filtered = zone === "Todo el país" ? byCategory : byCategory.filter((l) => l.region === zone);
 
   return (
     <>
       <TopBar title="19th Hole" />
+      <ConfigWarning />
       <div className="px-4 pt-1 pb-2 flex items-center justify-between" style={{ background: "#16321F" }}>
         <span className="text-[11px]" style={{ color: "#B7C4B8", fontFamily: "'Space Mono', monospace" }}>Mostrando resultados en</span>
         <ZonePicker zone={zone} setZone={setZone} open={zoneOpen} setOpen={setZoneOpen} />
@@ -227,28 +339,44 @@ function BuscarScreen({ onOpen }) {
         ))}
       </div>
 
-      {filtered.length === 0 && (
-        <div className="mx-4 mb-3 rounded-lg px-3 py-3 text-[12px]" style={{ background: "#FCFBF6", border: "1px dashed #CFCBB8", color: "#5C594C" }}>
-          No hay publicaciones de este tipo en <b>{zone}</b> todavía.
-          <button onClick={() => setZone("Todo el país")} className="block mt-1 underline" style={{ color: "#16321F", fontFamily: "'Space Mono', monospace" }}>
-            Ver en todo el país
-          </button>
+      {loading && (
+        <div className="text-center text-[12px] py-6" style={{ color: "#8B8574" }}>Cargando publicaciones...</div>
+      )}
+
+      {fetchError && (
+        <div className="mx-4 mb-3 rounded-lg px-3 py-3 text-[12px]" style={{ background: "#FCEFEA", border: "1px solid #E0B7A8", color: "#7A3420" }}>
+          No se pudo conectar con la base de datos: {fetchError}
+        </div>
+      )}
+
+      {!loading && !fetchError && filtered.length === 0 && (
+        <div className="mx-4 mb-3 rounded-lg px-3 py-4 text-[12px] text-center" style={{ background: "#FCFBF6", border: "1px dashed #CFCBB8", color: "#5C594C" }}>
+          {listings.length === 0
+            ? "Todavía no hay publicaciones. ¡Sé el primero en publicar un palo!"
+            : <>No hay publicaciones de este tipo en <b>{zone}</b> todavía.
+                <button onClick={() => setZone("Todo el país")} className="block mx-auto mt-1 underline" style={{ color: "#16321F", fontFamily: "'Space Mono', monospace" }}>
+                  Ver en todo el país
+                </button>
+              </>}
         </div>
       )}
 
       <div className="flex-1 overflow-y-auto px-4 pb-3 grid grid-cols-2 gap-3 content-start" style={{ background: "#F5F6EF" }}>
-        {filtered.map((l) => (
-          <button key={l.id} onClick={() => onOpen(l)} className="text-left rounded-xl overflow-hidden bg-white relative" style={{ border: "1px solid #E4E1D4", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-            <ClubGlyph type={l.type} accent={l.accent} />
-            <SpecTag listing={l} />
-            <div className="p-2.5">
-              <div className="text-[10px] uppercase tracking-wide" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{l.brand}</div>
-              <div className="text-[13px] leading-snug mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#1C2321" }}>{l.model}</div>
-              <div className="text-[14px] mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#16321F" }}>{money(l.price)}</div>
-              <div className="flex items-center gap-1 text-[10px]" style={{ color: "#8B8574" }}><MapPin size={10} />{l.zone}</div>
-            </div>
-          </button>
-        ))}
+        {filtered.map((l) => {
+          const photo = (l.listing_photos || []).sort((a, b) => a.position - b.position)[0];
+          return (
+            <button key={l.id} onClick={() => onOpen(l)} className="text-left rounded-xl overflow-hidden bg-white relative" style={{ border: "1px solid #E4E1D4", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+              <ClubGlyph type={l.type} photoUrl={photo && photo.url} />
+              <SpecTag listing={l} />
+              <div className="p-2.5">
+                <div className="text-[10px] uppercase tracking-wide" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{l.brand}</div>
+                <div className="text-[13px] leading-snug mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#1C2321" }}>{l.model}</div>
+                <div className="text-[14px] mb-1" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#16321F" }}>{money(l.price)}</div>
+                <div className="flex items-center gap-1 text-[10px]" style={{ color: "#8B8574" }}><MapPin size={10} />{l.zone}</div>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </>
   );
@@ -259,12 +387,14 @@ function DetalleScreen({ listing, onBack }) {
     ["Marca", listing.brand], ["Modelo", listing.model], ["Tipo", listing.type],
     ["Mano", listing.hand], ["Flex", listing.flex], ["Loft", listing.loft], ["Estado", listing.condition],
   ];
+  const photo = (listing.listing_photos || []).sort((a, b) => a.position - b.position)[0];
+  const seller = listing.seller || {};
   return (
     <>
       <TopBar title="Publicación" onBack={onBack} />
       <div className="flex-1 overflow-y-auto" style={{ background: "#F5F6EF" }}>
         <div className="relative">
-          <ClubGlyph type={listing.type} accent={listing.accent} />
+          <ClubGlyph type={listing.type} photoUrl={photo && photo.url} />
           <div className="h-40" />
           <div className="absolute inset-0 -mt-24" style={{ background: "linear-gradient(180deg, rgba(240,238,228,0) 0%, rgba(245,246,239,1) 70%)" }} />
         </div>
@@ -277,21 +407,23 @@ function DetalleScreen({ listing, onBack }) {
             {specs.map(([label, val], i) => (
               <div key={label} className="flex items-center justify-between px-3 py-2 text-[12px]" style={{ borderTop: i === 0 ? "none" : "1px dashed #E4E1D4" }}>
                 <span style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{label}</span>
-                <span style={{ color: "#1C2321", fontWeight: 500 }}>{val}</span>
+                <span style={{ color: "#1C2321", fontWeight: 500 }}>{val || "—"}</span>
               </div>
             ))}
           </div>
 
           <div className="flex items-center gap-3 rounded-lg p-3 mb-4" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4" }}>
-            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm" style={{ background: "#16321F", fontFamily: "'Fraunces', serif" }}>{listing.seller[0]}</div>
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm" style={{ background: "#16321F", fontFamily: "'Fraunces', serif" }}>
+              {(seller.full_name || "V")[0]}
+            </div>
             <div className="flex-1">
               <div className="text-[13px] font-medium flex items-center gap-1" style={{ color: "#1C2321" }}>
-                {listing.seller}
-                {listing.verified && <ShieldCheck size={13} color="#2F6B44" />}
+                {seller.full_name || "Vendedor"}
+                {seller.verified && <ShieldCheck size={13} color="#2F6B44" />}
               </div>
               <div className="flex items-center gap-1 text-[11px]" style={{ color: "#8B8574" }}>
                 <Star size={11} fill="#B58A3F" color="#B58A3F" />
-                {listing.rating} · {listing.zone}
+                {seller.rating ? Number(seller.rating).toFixed(1) : "Sin calificar"} · {listing.zone}
               </div>
             </div>
             <ChevronRight size={16} color="#8B8574" />
@@ -308,101 +440,209 @@ function DetalleScreen({ listing, onBack }) {
   );
 }
 
-function PublicarScreen() {
-  const fields = [
-    { label: "Marca", placeholder: "Ej: Callaway" },
-    { label: "Modelo", placeholder: "Ej: Rogue ST Max" },
-    { label: "Precio", placeholder: "$" },
-    { label: "Zona", placeholder: "Ej: San Isidro, BA" },
-  ];
+function PublicarScreen({ session }) {
+  const [brand, setBrand] = useState("");
+  const [model, setModel] = useState("");
+  const [type, setType] = useState(CATEGORIES[0]);
+  const [hand, setHand] = useState(HANDS[0]);
+  const [flex, setFlex] = useState("");
+  const [loft, setLoft] = useState("");
+  const [condition, setCondition] = useState("Usado – bueno");
+  const [price, setPrice] = useState("");
+  const [zone, setZone] = useState("");
+  const [region, setRegion] = useState(ZONES[0]);
+  const [file, setFile] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+
+  if (!session) {
+    return (
+      <>
+        <TopBar title="Publicar palo" />
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center" style={{ background: "#F5F6EF" }}>
+          <div className="text-[14px] mb-1" style={{ color: "#1C2321", fontWeight: 500 }}>Necesitás iniciar sesión</div>
+          <div className="text-[12px]" style={{ color: "#8B8574" }}>Andá a la pestaña Perfil para crear tu cuenta o iniciar sesión, y volvé acá a publicar.</div>
+        </div>
+      </>
+    );
+  }
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      const { data: inserted, error: insertError } = await supabase
+        .from("listings")
+        .insert({
+          seller_id: session.user.id,
+          brand, model, type, hand, flex, loft, condition,
+          price: Number(price), zone, region,
+        })
+        .select()
+        .single();
+      if (insertError) throw insertError;
+
+      if (file) {
+        const path = `${session.user.id}/${inserted.id}-${file.name}`;
+        const { error: uploadError } = await supabase.storage.from("listing-photos").upload(path, file);
+        if (uploadError) throw uploadError;
+        const { data: pub } = supabase.storage.from("listing-photos").getPublicUrl(path);
+        await supabase.from("listing_photos").insert({ listing_id: inserted.id, url: pub.publicUrl, position: 0 });
+      }
+
+      setSuccess(true);
+      setBrand(""); setModel(""); setFlex(""); setLoft(""); setPrice(""); setZone(""); setFile(null);
+    } catch (err) {
+      setError(err.message || "No se pudo publicar, probá de nuevo.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <>
       <TopBar title="Publicar palo" />
-      <div className="flex-1 overflow-y-auto px-4 py-4" style={{ background: "#F5F6EF" }}>
-        <button className="w-full h-32 rounded-lg flex flex-col items-center justify-center gap-1.5 mb-4" style={{ background: "#FCFBF6", border: "1.5px dashed #CFCBB8" }}>
-          <Camera size={22} color="#8B8574" />
-          <span className="text-[12px]" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Agregar fotos</span>
-        </button>
-        {fields.map((f) => (
-          <div key={f.label} className="mb-3">
-            <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{f.label}</label>
-            <input placeholder={f.placeholder} className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }} readOnly />
+      <form onSubmit={submit} className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-4 py-4" style={{ background: "#F5F6EF" }}>
+          <label className="w-full h-32 rounded-lg flex flex-col items-center justify-center gap-1.5 mb-4 cursor-pointer" style={{ background: "#FCFBF6", border: "1.5px dashed #CFCBB8" }}>
+            <Camera size={22} color="#8B8574" />
+            <span className="text-[12px]" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>
+              {file ? file.name : "Agregar foto"}
+            </span>
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => setFile(e.target.files[0] || null)} />
+          </label>
+
+          {[
+            ["Marca", brand, setBrand, "Ej: Callaway"],
+            ["Modelo", model, setModel, "Ej: Rogue ST Max"],
+          ].map(([label, val, set, ph]) => (
+            <div key={label} className="mb-3">
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{label}</label>
+              <input required value={val} onChange={(e) => set(e.target.value)} placeholder={ph}
+                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }} />
+            </div>
+          ))}
+
+          <div className="mb-3">
+            <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Tipo de palo</label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map((t) => (
+                <button type="button" key={t} onClick={() => setType(t)} className="px-3 py-1.5 rounded-full text-xs" style={{ fontFamily: "'Space Mono', monospace", background: type === t ? "#16321F" : "#FCFBF6", color: type === t ? "#F5F6EF" : "#454A40", border: "1px solid " + (type === t ? "#16321F" : "#E4E1D4") }}>
+                  {t}
+                </button>
+              ))}
+            </div>
           </div>
-        ))}
-        <div className="mb-3">
-          <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Tipo de palo</label>
-          <div className="flex flex-wrap gap-2">
-            {["Driver", "Madera", "Híbrido", "Hierro", "Wedge", "Putter"].map((t, i) => (
-              <span key={t} className="px-3 py-1.5 rounded-full text-xs" style={{ fontFamily: "'Space Mono', monospace", background: i === 0 ? "#16321F" : "#FCFBF6", color: i === 0 ? "#F5F6EF" : "#454A40", border: "1px solid " + (i === 0 ? "#16321F" : "#E4E1D4") }}>{t}</span>
-            ))}
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Mano</label>
+              <select value={hand} onChange={(e) => setHand(e.target.value)} className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }}>
+                {HANDS.map((h) => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Flex</label>
+              <input value={flex} onChange={(e) => setFlex(e.target.value)} placeholder="Ej: Regular"
+                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }} />
+            </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Loft</label>
+              <input value={loft} onChange={(e) => setLoft(e.target.value)} placeholder="Ej: 10.5°"
+                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }} />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Precio</label>
+              <input required type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="$"
+                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }} />
+            </div>
+          </div>
+
+          <div className="mb-3">
+            <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Estado</label>
+            <select value={condition} onChange={(e) => setCondition(e.target.value)} className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }}>
+              {["Usado – como nuevo", "Usado – muy bueno", "Usado – bueno", "Usado – aceptable"].map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Barrio/Ciudad</label>
+              <input required value={zone} onChange={(e) => setZone(e.target.value)} placeholder="Ej: San Isidro"
+                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }} />
+            </div>
+            <div>
+              <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Región</label>
+              <select value={region} onChange={(e) => setRegion(e.target.value)} className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }}>
+                {ZONES.map((z) => <option key={z} value={z}>{z}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {error && <div className="text-[12px] mb-3" style={{ color: "#B23A24" }}>{error}</div>}
+          {success && <div className="text-[12px] mb-3" style={{ color: "#2F6B44" }}>¡Publicado! Ya lo podés ver en Buscar.</div>}
         </div>
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <div>
-            <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Mano</label>
-            <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }}>Diestro</div>
-          </div>
-          <div>
-            <label className="text-[10px] uppercase tracking-wide block mb-1" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>Flex</label>
-            <div className="px-3 py-2.5 rounded-lg text-sm" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#1C2321" }}>Regular</div>
-          </div>
+        <div className="p-3" style={{ background: "#FCFBF6", borderTop: "1px solid #E4E1D4" }}>
+          <button type="submit" disabled={submitting} className="w-full py-3 rounded-full text-white text-sm disabled:opacity-50" style={{ background: "#16321F", fontFamily: "'Space Mono', monospace" }}>
+            {submitting ? "Publicando..." : "Publicar"}
+          </button>
         </div>
-      </div>
-      <div className="p-3" style={{ background: "#FCFBF6", borderTop: "1px solid #E4E1D4" }}>
-        <button className="w-full py-3 rounded-full text-white text-sm" style={{ background: "#16321F", fontFamily: "'Space Mono', monospace" }}>Publicar</button>
-      </div>
+      </form>
     </>
   );
 }
 
 function ChatsScreen() {
-  const chats = [
-    { name: "Martín P.", msg: "Dale, te lo dejo en 140.", time: "10:32", item: "Rogue ST Max" },
-    { name: "Coti G.", msg: "¿Seguís teniendo el set?", time: "ayer", item: "T100" },
-    { name: "Sole R.", msg: "Perfecto, nos vemos en el club.", time: "lun", item: "G430" },
-  ];
   return (
     <>
       <TopBar title="Chats" />
-      <div className="flex-1 overflow-y-auto" style={{ background: "#F5F6EF" }}>
-        {chats.map((c, i) => (
-          <div key={i} className="flex items-center gap-3 px-4 py-3" style={{ borderBottom: "1px solid #E4E1D4" }}>
-            <div className="w-11 h-11 rounded-full flex items-center justify-center text-white" style={{ background: "#16321F", fontFamily: "'Fraunces', serif" }}>{c.name[0]}</div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <span className="text-[13px] font-medium" style={{ color: "#1C2321" }}>{c.name}</span>
-                <span className="text-[10px]" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{c.time}</span>
-              </div>
-              <div className="text-[12px] truncate" style={{ color: "#5C594C" }}>{c.msg}</div>
-              <div className="text-[10px] uppercase tracking-wide mt-0.5" style={{ color: "#B58A3F", fontFamily: "'Space Mono', monospace" }}>{c.item}</div>
-            </div>
-          </div>
-        ))}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 text-center" style={{ background: "#F5F6EF" }}>
+        <MessageCircle size={28} color="#CFCBB8" />
+        <div className="text-[12px] mt-2" style={{ color: "#8B8574" }}>
+          El chat real todavía no está conectado — es el próximo paso del roadmap.
+        </div>
       </div>
     </>
   );
 }
 
-function PerfilScreen() {
+function PerfilScreen({ session, profile }) {
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  if (!session) return <LoginScreen />;
+
+  const signOut = async () => {
+    setLoggingOut(true);
+    await supabase.auth.signOut();
+    setLoggingOut(false);
+  };
+
   return (
     <>
       <TopBar title="Mi perfil" />
       <div className="flex-1 overflow-y-auto px-4 py-5" style={{ background: "#F5F6EF" }}>
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl" style={{ background: "#16321F", fontFamily: "'Fraunces', serif" }}>V</div>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl" style={{ background: "#16321F", fontFamily: "'Fraunces', serif" }}>
+            {(profile && profile.full_name ? profile.full_name[0] : "V")}
+          </div>
           <div>
-            <div className="text-[16px]" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#1C2321" }}>Vos</div>
-            <div className="flex items-center gap-1 text-[12px]" style={{ color: "#8B8574" }}><Star size={12} fill="#B58A3F" color="#B58A3F" />Nuevo en 19th Hole</div>
+            <div className="text-[16px]" style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, color: "#1C2321" }}>
+              {(profile && profile.full_name) || "Golfista"}
+            </div>
+            <div className="text-[12px]" style={{ color: "#8B8574" }}>{session.user.email}</div>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 mb-5">
-          {[["0", "Publicados"], ["0", "Vendidos"], ["0", "Comprados"]].map(([n, l]) => (
-            <div key={l} className="rounded-lg py-3 text-center" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4" }}>
-              <div style={{ fontFamily: "'Fraunces', serif", fontWeight: 700, fontSize: 18, color: "#16321F" }}>{n}</div>
-              <div className="text-[10px]" style={{ color: "#8B8574", fontFamily: "'Space Mono', monospace" }}>{l}</div>
-            </div>
-          ))}
-        </div>
+
+        <button onClick={signOut} disabled={loggingOut} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full text-sm mb-5" style={{ background: "#FCFBF6", border: "1px solid #E4E1D4", color: "#B23A24", fontFamily: "'Space Mono', monospace" }}>
+          <LogOut size={14} />
+          {loggingOut ? "Saliendo..." : "Cerrar sesión"}
+        </button>
+
         {["Mis publicaciones", "Guardados", "Verificar identidad", "Ayuda"].map((it) => (
           <div key={it} className="flex items-center justify-between py-3 text-[13px]" style={{ borderBottom: "1px solid #E4E1D4", color: "#1C2321" }}>
             {it}
@@ -420,6 +660,21 @@ function PerfilScreen() {
 function App() {
   const [tab, setTab] = useState("buscar");
   const [selected, setSelected] = useState(null);
+  const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    if (!SUPABASE_CONFIGURED) return;
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!session) { setProfile(null); return; }
+    supabase.from("profiles").select("*").eq("id", session.user.id).single()
+      .then(({ data }) => setProfile(data));
+  }, [session]);
 
   let screen;
   if (selected) {
@@ -427,11 +682,11 @@ function App() {
   } else if (tab === "buscar") {
     screen = <BuscarScreen onOpen={setSelected} />;
   } else if (tab === "publicar") {
-    screen = <PublicarScreen />;
+    screen = <PublicarScreen session={session} />;
   } else if (tab === "chats") {
     screen = <ChatsScreen />;
   } else {
-    screen = <PerfilScreen />;
+    screen = <PerfilScreen session={session} profile={profile} />;
   }
 
   return (
