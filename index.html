@@ -22,6 +22,7 @@
 <div id="root"></div>
 
 <script type="text/babel" data-presets="react">
+(function() {
 const { useState, useEffect } = React;
 
 // =============================================================================
@@ -704,6 +705,7 @@ function App() {
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App />);
+})();
 </script>
 
 </body>
